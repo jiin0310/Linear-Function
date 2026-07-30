@@ -81,12 +81,12 @@ export default function InteractiveGraph({
   const panShiftYMath = Math.max(-12, Math.min(12, targetFocusY * 0.4));
   const centerY = height / 2 + panShiftYMath * pixelsPerUnit;
 
-  // Auto-pan shift X if intersection or handles move left/right
   let targetFocusX = 0;
   if (showLine2 && intersection && intersection.type === 'point') {
     targetFocusX = Math.max(-8, Math.min(8, intersection.x * 0.3));
   }
-  const centerX = (availableWidth / 2) - targetFocusX * pixelsPerUnit;
+  // Stable Canvas Center: anchor centerX to viewport width to prevent grid jumping when collapsing sidebar
+  const centerX = (width / 2) - targetFocusX * pixelsPerUnit;
 
   // Coordinate transforms
   const toPx = (x) => centerX + x * pixelsPerUnit;
