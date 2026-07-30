@@ -3,11 +3,11 @@ import { Zap, CheckCircle2, Eye, ChevronRight, ChevronLeft } from 'lucide-react'
 import { SmartNumber, toFraction, VerticalFraction } from '../utils/fractionUtils';
 
 const PRESETS = [
-  { label: 'y = x (기본)', a: 1, b: 0 },
-  { label: 'y = 3x - 1 (가파름)', a: 3, b: -1 },
-  { label: 'y = -2x + 4 (내리막)', a: -2, b: 4 },
-  { label: 'y = 3 (평평함)', a: 0, b: 3 },
-  { label: 'y = 2x - 5 (음수절편)', a: 2, b: -5 },
+  { label: 'y = x', a: 1, b: 0 },
+  { label: 'y = 3x - 1', a: 3, b: -1 },
+  { label: 'y = -2x + 4', a: -2, b: 4 },
+  { label: 'y = 3', a: 0, b: 3 },
+  { label: 'y = 2x - 5', a: 2, b: -5 },
 ];
 
 export default function PlaygroundMode({

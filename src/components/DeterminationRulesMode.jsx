@@ -211,7 +211,7 @@ export default function DeterminationRulesMode({ sidePanelOpen, setSidePanelOpen
               <span>📐 2. 기울기(방향) + 지나가는 1점 ➔ 직선 1개 확정!</span>
             </div>
             <p style={{ fontSize: '13px', color: '#1d4ed8', lineHeight: '1.4' }}>
-              직선의 기울기(경사)가 고정되어 있으면, 특정 점 1개를 통과하는 순간 직선의 위치가 <strong>완벽히 락(Lock)</strong>됩니다!
+              직선의 기울기(경사)가 고정되어 있으면, 특정 점 1개를 통과하는 순간 직선의 위치가 <strong>완벽히 고정</strong>됩니다!
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>

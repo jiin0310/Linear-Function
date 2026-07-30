@@ -159,7 +159,7 @@ body, html {
   top: 1rem;
   right: 1.5rem;
   bottom: 1.5rem;
-  width: 340px;
+  width: 390px;
   z-index: 20;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(24px);
@@ -321,10 +321,11 @@ body, html {
 }
 
 .param-badge {
-  font-family: 'Inter', monospace;
-  font-weight: 600;
-  font-size: 14px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 13px;
   color: var(--text-muted);
+  letter-spacing: normal;
 }
 
 input[type="range"] {

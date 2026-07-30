@@ -54,8 +54,8 @@ export default function InteractiveGraph({
   const basePixelsPerUnit = 45;
   const pixelsPerUnit = basePixelsPerUnit * zoom;
 
-  // Compute available visible width (accounting for right side panel)
-  const panelWidth = isSidePanelOpen ? 360 : 0;
+  // Compute available visible width (accounting for right side panel width 390px)
+  const panelWidth = isSidePanelOpen ? 390 : 0;
   const availableWidth = Math.max(width - panelWidth, 200);
 
   // Intersection of Line 1 and Line 2
@@ -437,7 +437,7 @@ export default function InteractiveGraph({
               fontWeight="500"
               textAnchor={a > 0 ? "start" : "end"}
             >
-              {a > 0 ? `+${a}` : `${a}`}
+              {a > 0 ? `+${formatCoordStr(a)}` : formatCoordStr(a)}
             </text>
           </g>
         )}
@@ -552,7 +552,7 @@ export default function InteractiveGraph({
             textAnchor="end"
             style={{ pointerEvents: 'none' }}
           >
-            y절편 ({b})
+            y절편 ({formatCoordStr(b)})
           </text>
         </g>
 
@@ -580,7 +580,7 @@ export default function InteractiveGraph({
               textAnchor="start"
               style={{ pointerEvents: 'none' }}
             >
-              y절편2 ({b2})
+              y절편2 ({formatCoordStr(b2)})
             </text>
           </g>
         )}
