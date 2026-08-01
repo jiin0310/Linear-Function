@@ -48,7 +48,7 @@ export default function FunctionBoxMode({ sidePanelOpen, setSidePanelOpen, onPar
         <div className="concept-card" style={{ background: '#f8fafc', border: '1px solid #cbd5e1' }}>
           <div className="concept-title" style={{ color: '#0f172a' }}>
             <Box size={20} color="#3b82f6" />
-            <span>📥 함수 상자</span>
+            <span>함수 상자</span>
           </div>
 
           {/* SVG Function Box Diagram - Generous ViewBox (0 -15 320 210) preventing any clipping */}
@@ -145,7 +145,7 @@ export default function FunctionBoxMode({ sidePanelOpen, setSidePanelOpen, onPar
             </label>
             <input
               type="number"
-              placeholder="숫자를 입력해보세요 (비우면 □)"
+              placeholder="숫자를 입력해보세요"
               value={inputXStr}
               onChange={(e) => setInputXStr(e.target.value)}
               style={{
@@ -194,7 +194,7 @@ export default function FunctionBoxMode({ sidePanelOpen, setSidePanelOpen, onPar
         <div className="concept-card" style={{ background: '#fdf2f8', borderColor: '#fbcfe8' }}>
           <div className="concept-title" style={{ color: '#9d174d' }}>
             <RefreshCw size={18} color="#db2777" />
-            <span>🔄 일차방정식 ⇄ 일차함수 변환기</span>
+            <span>일차방정식 ⇄ 일차함수 변환기</span>
           </div>
 
           <p style={{ fontSize: '12px', color: '#9d174d', lineHeight: '1.4' }}>
@@ -272,7 +272,7 @@ export default function FunctionBoxMode({ sidePanelOpen, setSidePanelOpen, onPar
             <div style={{ fontSize: '13px', fontWeight: '600', color: '#831843', marginTop: '0.25rem' }}>
               2️⃣ y에 대해 이항 정리:
             </div>
-            <div style={{ fontSize: '14px', color: '#374151', textAlign: 'center' }}>
+            <div style={{ fontSize: '16px', fontWeight: '700', color: '#be185d', textAlign: 'center' }}>
               {genB}y = -{genA}x - {genC}
             </div>
 

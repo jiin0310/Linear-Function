@@ -123,3 +123,32 @@ export function SmartNumber({ val, color, fontSize = '1rem' }) {
   }
   return <VerticalFraction num={frac.num} den={frac.den} color={color} fontSize={fontSize} />;
 }
+
+// Parse string like "5/3", "-2", "1.5" into a number
+export function parseFractionOrNumber(str) {
+  if (!str || typeof str !== 'string') return null;
+  const trimmed = str.trim();
+  if (trimmed === '' || trimmed === '-' || trimmed.endsWith('/')) return null;
+
+  if (trimmed.includes('/')) {
+    const parts = trimmed.split('/');
+    if (parts.length === 2) {
+      const num = parseFloat(parts[0]);
+      const den = parseFloat(parts[1]);
+      if (!isNaN(num) && !isNaN(den) && den !== 0) {
+        return num / den;
+      }
+    }
+  } else {
+    const val = parseFloat(trimmed);
+    if (!isNaN(val)) return val;
+  }
+}
+
+// Format number to fraction string like "5/3" or "2"
+export function formatFractionStr(val, defaultEmpty = false) {
+  if (val === null || val === undefined || isNaN(val)) return defaultEmpty ? '' : '?';
+  if (Number.isInteger(val)) return `${val}`;
+  const f = toFraction(val);
+  return f.isInteger ? `${f.num}` : `${f.num}/${f.den}`;
+}

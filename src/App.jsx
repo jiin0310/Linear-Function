@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Compass, Sparkles, ChevronUp, ChevronDown, Sliders, Box, CheckCircle2 } from 'lucide-react';
+import { Compass, Sparkles, ChevronUp, ChevronDown, Sliders, Box, CheckCircle2, ChevronLeft } from 'lucide-react';
 import InteractiveGraph from './components/InteractiveGraph';
 import PlaygroundMode from './components/PlaygroundMode';
 import FunctionBoxMode from './components/FunctionBoxMode';
@@ -20,12 +20,14 @@ export default function App() {
   const [b2, setB2] = useState(1);
   const [showSlopeTriangle, setShowSlopeTriangle] = useState(true);
   const [targets, setTargets] = useState([]);
+  const [showLine1, setShowLine1] = useState(true);
 
   // Callback to sync parameters from sub-components
-  const handleDeterminationParamChange = useCallback((newA, newB, newTargets) => {
+  const handleDeterminationParamChange = useCallback((newA, newB, newTargets, isLineVisible = true) => {
     setA(newA);
     setB(newB);
     setTargets(newTargets || []);
+    setShowLine1(isLineVisible);
     setShowLine2(false);
   }, []);
 
@@ -33,14 +35,18 @@ export default function App() {
     setA(newA);
     setB(newB);
     setTargets([]);
+    setShowLine1(true);
     setShowLine2(false);
   }, []);
 
   const handleTabChange = (tabKey) => {
     setActiveTab(tabKey);
     if (tabKey === 'box') {
+      setShowLine1(true);
       setShowLine2(false);
       setTargets([]);
+    } else if (tabKey === 'playground') {
+      setShowLine1(true);
     } else if (tabKey === 'determination') {
       setShowLine2(false);
     }
@@ -51,6 +57,7 @@ export default function App() {
     setB(2);
     setA2(-1);
     setB2(1);
+    setShowLine1(true);
     setShowLine2(false);
     setTargets([]);
   }, []);
@@ -61,6 +68,7 @@ export default function App() {
       <InteractiveGraph
         a={a}
         b={b}
+        showLine1={showLine1}
         onParamChange={(newA, newB) => {
           setA(newA);
           setB(newB);
@@ -139,16 +147,6 @@ export default function App() {
         </button>
       )}
 
-      {/* Trigger Button when Side Panel is collapsed */}
-      {!isSidePanelOpen && (
-        <button
-          className="collapsed-panel-trigger"
-          onClick={() => setIsSidePanelOpen(true)}
-        >
-          <Sliders size={18} color="#0284c7" /> 컨트롤 패널 열기 <ChevronLeft size={18} />
-        </button>
-      )}
-
       {/* Control Panel Views (Floating Side Drawers) */}
       {activeTab === 'box' && (
         <FunctionBoxMode
@@ -195,7 +193,7 @@ export default function App() {
           }}
         >
           <span style={{ color: '#0284c7' }}>💡 직관 조작 팁:</span>
-          <span style={{ color: '#0f172a' }}>y절편 점(붉은색)이나 기울기 점(파란색)을 잡고 끌어서 조절해보세요!</span>
+          <span style={{ color: '#0f172a' }}>y절편 점이나 기울기 점(파란색)을 잡고 끌어서 조절해보세요!</span>
           <button
             onClick={() => setIsTipDismissed(true)}
             style={{

@@ -1,18 +1,57 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
-import { toFraction } from '../utils/fractionUtils';
+import { toFraction, formatFractionStr } from '../utils/fractionUtils';
 
-const formatCoordStr = (val) => {
-  if (val === null || val === undefined || isNaN(val)) return '?';
-  if (Number.isInteger(val)) return `${val}`;
-  const f = toFraction(val);
-  return f.isInteger ? `${f.num}` : `${f.num}/${f.den}`;
-};
+function useSmoothValue(target, speed = 0.15, immediate = false) {
+  const [current, setCurrent] = useState(target);
+  useEffect(() => {
+    if (immediate) {
+      setCurrent(target);
+      return;
+    }
+    let id;
+    const update = () => {
+      setCurrent(prev => {
+        const diff = target - prev;
+        if (Math.abs(diff) < 0.001) return target;
+        return prev + diff * speed;
+      });
+      id = requestAnimationFrame(update);
+    };
+    update();
+    return () => cancelAnimationFrame(id);
+  }, [target, speed, immediate]);
+  return current;
+}
+
+function useSmoothPan(target, speed = 0.15, immediate = false) {
+  const [current, setCurrent] = useState(target);
+  useEffect(() => {
+    if (immediate) {
+      setCurrent(target);
+      return;
+    }
+    let id;
+    const update = () => {
+      setCurrent(prev => {
+        const dx = target.x - prev.x;
+        const dy = target.y - prev.y;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return target;
+        return { x: prev.x + dx * speed, y: prev.y + dy * speed };
+      });
+      id = requestAnimationFrame(update);
+    };
+    update();
+    return () => cancelAnimationFrame(id);
+  }, [target.x, target.y, speed, immediate]);
+  return current;
+}
 
 export default function InteractiveGraph({
   a,
   b,
   onParamChange,
+  showLine1 = true,
   showSlopeTriangle = true,
   showTablePoint = false,
   scrubX = 2,
@@ -33,13 +72,17 @@ export default function InteractiveGraph({
   const [dragging, setDragging] = useState(null); // 'intercept' | 'slope' | 'intercept2' | 'slope2'
   const [zoom, setZoom] = useState(1);
   const [hoveredAxis, setHoveredAxis] = useState(null);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const panStartRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
+        const w = containerRef.current.clientWidth || window.innerWidth;
+        const h = containerRef.current.clientHeight || window.innerHeight;
         setDimensions({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight
+          width: w > 0 ? w : 800,
+          height: h > 0 ? h : 600
         });
       }
     };
@@ -50,9 +93,13 @@ export default function InteractiveGraph({
 
   const { width, height } = dimensions;
 
+  // Smooth display values
+  const displayZoom = useSmoothValue(zoom, 0.15, false);
+  const displayPan = useSmoothPan(panOffset, 0.15, dragging === 'pan');
+
   // Base pixels per unit when zoom is 1
   const basePixelsPerUnit = 45;
-  const pixelsPerUnit = basePixelsPerUnit * zoom;
+  const pixelsPerUnit = basePixelsPerUnit * displayZoom;
 
   // Compute available visible width (accounting for right side panel width 390px)
   const panelWidth = isSidePanelOpen ? 390 : 0;
@@ -72,21 +119,9 @@ export default function InteractiveGraph({
     }
   }
 
-  // Dynamic Auto-panning: shift centerY down when target Y values (b, b2) increase,
-  // pushing X-axis towards the bottom to reveal higher Y-axis values dynamically!
-  let targetFocusY = b;
-  if (showLine2) {
-    targetFocusY = (b + b2) / 2;
-  }
-  const panShiftYMath = Math.max(-12, Math.min(12, targetFocusY * 0.4));
-  const centerY = height / 2 + panShiftYMath * pixelsPerUnit;
-
-  let targetFocusX = 0;
-  if (showLine2 && intersection && intersection.type === 'point') {
-    targetFocusX = Math.max(-8, Math.min(8, intersection.x * 0.3));
-  }
-  // Stable Canvas Center: anchor centerX to viewport width to prevent grid jumping when collapsing sidebar
-  const centerX = (width / 2) - targetFocusX * pixelsPerUnit;
+  // Stable Canvas Center with Pan Offset
+  const centerY = height / 2 + displayPan.y;
+  const centerX = width / 2 - 100 + displayPan.x;
 
   // Coordinate transforms
   const toPx = (x) => centerX + x * pixelsPerUnit;
@@ -160,10 +195,17 @@ export default function InteractiveGraph({
   const slopeAnchor2 = isCloseSlope ? "end" : "start";
 
   // Anti-collision label math for Intersection Badge
+  const ixTextStr = (showLine2 && intersection && intersection.type === 'point')
+    ? `교점 (${formatFractionStr(intersection.rawX)}, ${formatFractionStr(intersection.rawY)})`
+    : '';
+  const estimatedIxWidth = ixTextStr.split('').reduce((acc, char) => acc + (char.charCodeAt(0) > 255 ? 12 : 7), 0);
+  const ixBoxWidth = Math.max(90, Math.ceil(estimatedIxWidth + 24));
+  const ixBoxHeight = 28;
+
   let ixBadgeX = 0;
-  let ixBadgeY = -32;
+  let ixBadgeY = -34;
   let ixTextAnchor = "middle";
-  let ixBoxX = -45;
+  let ixBoxX = -ixBoxWidth / 2;
   let isNearHandle = false;
 
   if (showLine2 && intersection && intersection.type === 'point') {
@@ -177,10 +219,10 @@ export default function InteractiveGraph({
 
     if (distToH1 < 50 || distToH2 < 50 || distToS1 < 50 || distToS2 < 50) {
       isNearHandle = true;
-      ixBadgeX = 45;
-      ixBadgeY = -22;
-      ixTextAnchor = "start";
-      ixBoxX = -10;
+      ixBadgeX = -45;
+      ixBadgeY = -24;
+      ixTextAnchor = "end";
+      ixBoxX = -ixBoxWidth + 10;
     }
   }
 
@@ -194,14 +236,30 @@ export default function InteractiveGraph({
   const triY2 = a * 1 + b;
 
   // Dragging Handlers
+  const handlePointerDownBg = (e) => {
+    e.target.setPointerCapture(e.pointerId);
+    setDragging('pan');
+    panStartRef.current = { x: e.clientX, y: e.clientY };
+  };
+
   const handlePointerDown = (type) => (e) => {
     if (!interactiveHandles) return;
+    e.stopPropagation();
     e.target.setPointerCapture(e.pointerId);
     setDragging(type);
   };
 
   const handlePointerMove = (e) => {
     if (!dragging || !containerRef.current) return;
+
+    if (dragging === 'pan') {
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      setPanOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+      panStartRef.current = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
     const rect = containerRef.current.getBoundingClientRect();
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
@@ -246,20 +304,21 @@ export default function InteractiveGraph({
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.2, 0.4));
 
   // Determine tick spacing based on zoom so they don't overlap
-  const tickStepX = zoom < 0.6 ? 2 : 1;
-  const tickStepY = zoom < 0.6 ? 2 : 1;
+  const tickStepX = displayZoom < 0.6 ? 2 : 1;
+  const tickStepY = displayZoom < 0.6 ? 2 : 1;
 
   return (
     <div
       className="fullscreen-graph-canvas"
       ref={containerRef}
+      onPointerDown={handlePointerDownBg}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      style={{ userSelect: 'none', background: '#fafafa', position: 'relative' }}
+      style={{ userSelect: 'none', background: '#fafafa', position: 'relative', cursor: dragging === 'pan' ? 'grabbing' : 'grab' }}
     >
       <svg className="graph-svg" viewBox={`0 0 ${width} ${height}`}>
         <defs>
-          <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <filter id="softShadow" filterUnits="userSpaceOnUse" x="0" y="0" width="100%" height="100%">
             <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#2563eb" floodOpacity="0.15" />
           </filter>
         </defs>
@@ -269,6 +328,7 @@ export default function InteractiveGraph({
           {xTicks.map((val) => {
             if (val === 0) return null;
             const px = toPx(val);
+            const isMajor = val % 5 === 0;
             return (
               <line
                 key={`vx-${val}`}
@@ -276,14 +336,15 @@ export default function InteractiveGraph({
                 y1={0}
                 x2={px}
                 y2={height}
-                stroke="#f3f4f6"
-                strokeWidth="1"
+                stroke={isMajor ? "#cbd5e1" : "#e2e8f0"}
+                strokeWidth={isMajor ? "1.5" : "1"}
               />
             );
           })}
           {yTicks.map((val) => {
             if (val === 0) return null;
             const py = toPy(val);
+            const isMajor = val % 5 === 0;
             return (
               <line
                 key={`hy-${val}`}
@@ -291,8 +352,8 @@ export default function InteractiveGraph({
                 y1={py}
                 x2={width}
                 y2={py}
-                stroke="#f3f4f6"
-                strokeWidth="1"
+                stroke={isMajor ? "#cbd5e1" : "#e2e8f0"}
+                strokeWidth={isMajor ? "1.5" : "1"}
               />
             );
           })}
@@ -309,21 +370,21 @@ export default function InteractiveGraph({
             y1={0}
             x2={toPx(0)}
             y2={height}
-            stroke={hoveredAxis === 'y' ? "#9ca3af" : "#d1d5db"}
-            strokeWidth="2"
-            transition="all 0.3s ease"
+            stroke={hoveredAxis === 'y' ? "#475569" : "#64748b"}
+            strokeWidth="2.5"
+            style={{ transition: 'stroke 0.3s ease' }}
           />
           <text
             x={toPx(0) - 12}
             y={24}
-            fill="#6b7280"
+            fill="#334155"
             fontSize="14"
-            fontWeight="500"
+            fontWeight="700"
             textAnchor="end"
-            opacity={hoveredAxis === 'y' ? 1 : 0}
-            style={{ transition: 'opacity 0.3s ease' }}
+            opacity={hoveredAxis === 'y' ? 1 : 0.6}
+            style={{ transition: 'opacity 0.3s ease', paintOrder: 'stroke fill', stroke: '#ffffff', strokeWidth: '3px' }}
           >
-            Y Axis
+            Y축
           </text>
         </g>
 
@@ -337,21 +398,21 @@ export default function InteractiveGraph({
             y1={toPy(0)}
             x2={width}
             y2={toPy(0)}
-            stroke={hoveredAxis === 'x' ? "#9ca3af" : "#d1d5db"}
-            strokeWidth="2"
+            stroke={hoveredAxis === 'x' ? "#475569" : "#64748b"}
+            strokeWidth="2.5"
             style={{ transition: 'stroke 0.3s ease' }}
           />
           <text
             x={width - 24}
             y={toPy(0) + 20}
-            fill="#6b7280"
+            fill="#334155"
             fontSize="14"
-            fontWeight="500"
+            fontWeight="700"
             textAnchor="end"
-            opacity={hoveredAxis === 'x' ? 1 : 0}
-            style={{ transition: 'opacity 0.3s ease' }}
+            opacity={hoveredAxis === 'x' ? 1 : 0.6}
+            style={{ transition: 'opacity 0.3s ease', paintOrder: 'stroke fill', stroke: '#ffffff', strokeWidth: '3px' }}
           >
-            X Axis
+            X축
           </text>
         </g>
 
@@ -364,10 +425,11 @@ export default function InteractiveGraph({
                 key={`tx-${t}`}
                 x={toPx(t)}
                 y={toPy(0) + 18}
-                fill="#9ca3af"
+                fill="#475569"
                 fontSize="12"
-                fontWeight="400"
+                fontWeight="600"
                 textAnchor="middle"
+                style={{ paintOrder: 'stroke fill', stroke: '#ffffff', strokeWidth: '3px', strokeLinejoin: 'round' }}
               >
                 {t}
               </text>
@@ -375,15 +437,18 @@ export default function InteractiveGraph({
           })}
           {yTicks.map((t) => {
             if (t === 0 || t % tickStepY !== 0) return null;
+            if (showLine1 && Math.abs(t - b) < 0.25) return null;
+            if (showLine2 && Math.abs(t - b2) < 0.25) return null;
             return (
               <text
                 key={`ty-${t}`}
                 x={toPx(0) - 10}
                 y={toPy(t) + 4}
-                fill="#9ca3af"
+                fill="#475569"
                 fontSize="12"
-                fontWeight="400"
+                fontWeight="600"
                 textAnchor="end"
+                style={{ paintOrder: 'stroke fill', stroke: '#ffffff', strokeWidth: '3px', strokeLinejoin: 'round' }}
               >
                 {t}
               </text>
@@ -392,13 +457,50 @@ export default function InteractiveGraph({
         </g>
 
         {/* Origin Label */}
-        <text x={toPx(0) - 8} y={toPy(0) + 16} fill="#9ca3af" fontSize="11" fontWeight="400" textAnchor="end">
+        <text
+          x={toPx(0) - 8}
+          y={toPy(0) + 16}
+          fill="#475569"
+          fontSize="12"
+          fontWeight="600"
+          textAnchor="end"
+          style={{ paintOrder: 'stroke fill', stroke: '#ffffff', strokeWidth: '3px' }}
+        >
           0
         </text>
 
+        {/* Function Line 1: y = ax + b */}
+        {showLine1 && (
+          <line
+            x1={toPx(lineX1)}
+            y1={toPy(lineY1)}
+            x2={toPx(lineX2)}
+            y2={toPy(lineY2)}
+            stroke="#3b82f6"
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            filter="url(#softShadow)"
+            style={{ transition: 'all 0.1s linear' }}
+          />
+        )}
+
+        {/* Function Line 2: y = a2*x + b2 */}
+        {showLine2 && (
+          <line
+            x1={toPx(line2X1)}
+            y1={toPy(line2Y1)}
+            x2={toPx(line2X2)}
+            y2={toPy(line2Y2)}
+            stroke="#ec4899"
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            style={{ transition: 'all 0.1s linear' }}
+          />
+        )}
+
         {/* Slope Triangle */}
-        {showSlopeTriangle && a !== 0 && (
-          <g className="slope-triangle" style={{ opacity: 0.8 }}>
+        {showLine1 && showSlopeTriangle && a !== 0 && (
+          <g className="slope-triangle" style={{ opacity: 0.85 }}>
             {/* dx */}
             <line
               x1={toPx(triX0)}
@@ -424,8 +526,9 @@ export default function InteractiveGraph({
               y={toPy(triY0) + (a >= 0 ? 18 : -8)}
               fill="#d97706"
               fontSize="12"
-              fontWeight="500"
+              fontWeight="700"
               textAnchor="middle"
+              style={{ paintOrder: 'stroke fill', stroke: '#ffffff', strokeWidth: '5px', strokeLinejoin: 'round' }}
             >
               +1
             </text>
@@ -434,72 +537,63 @@ export default function InteractiveGraph({
               y={(toPy(triY1) + toPy(triY2)) / 2}
               fill="#2563eb"
               fontSize="12"
-              fontWeight="500"
+              fontWeight="700"
               textAnchor={a > 0 ? "start" : "end"}
+              style={{ paintOrder: 'stroke fill', stroke: '#ffffff', strokeWidth: '5px', strokeLinejoin: 'round' }}
             >
-              {a > 0 ? `+${formatCoordStr(a)}` : formatCoordStr(a)}
+              {a > 0 ? `+${formatFractionStr(a)}` : formatFractionStr(a)}
             </text>
           </g>
         )}
 
-        {/* Target Stars for Game */}
+        {/* Target Points / Markers */}
         {targets.map((tgt, idx) => {
-          const isHit = Math.abs(a * tgt.x + b - tgt.y) < 0.2;
+          const isHit = showLine1 && Math.abs(a * tgt.x + b - tgt.y) < 0.2;
+          const labelText = tgt.label
+            ? `${tgt.label} (${formatFractionStr(tgt.x)}, ${formatFractionStr(tgt.y)})`
+            : `(${formatFractionStr(tgt.x)}, ${formatFractionStr(tgt.y)})`;
+          const badgeW = Math.max(72, labelText.length * 7.2 + 16);
+          const badgeY = -42;
           return (
             <g key={idx} transform={`translate(${toPx(tgt.x)}, ${toPy(tgt.y)})`}>
               <circle
-                r="16"
-                fill={isHit ? "#d1fae5" : "#fef3c7"}
-                stroke={isHit ? "#10b981" : "#f59e0b"}
-                strokeWidth="1.5"
-                style={{ transition: 'all 0.3s ease' }}
+                r="15"
+                fill={showLine1 ? (isHit ? "#d1fae5" : "#fee2e2") : "#e0f2fe"}
+                stroke={showLine1 ? (isHit ? "#10b981" : "#ef4444") : "#0284c7"}
+                strokeWidth="2"
+                style={{ transition: 'all 0.3s ease', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.12))' }}
               />
-              <text textAnchor="middle" dominantBaseline="central" fontSize="16">
-                {isHit ? "⭐" : "🌟"}
+              <text textAnchor="middle" dominantBaseline="central" fontSize="14">
+                📍
               </text>
+              <rect
+                x={-badgeW / 2}
+                y={badgeY}
+                width={badgeW}
+                height="22"
+                rx="6"
+                fill="rgba(255, 255, 255, 0.95)"
+                stroke="#94a3b8"
+                strokeWidth="1.2"
+                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.12))' }}
+              />
               <text
                 x="0"
-                y="26"
-                fill={isHit ? "#059669" : "#d97706"}
+                y={badgeY + 11}
+                fill="#0f172a"
                 fontSize="11"
-                fontWeight="500"
+                fontWeight="700"
                 textAnchor="middle"
+                dominantBaseline="central"
               >
-                ({tgt.x}, {tgt.y})
+                {labelText}
               </text>
             </g>
           );
         })}
 
-        {/* Function Line 1: y = ax + b */}
-        <line
-          x1={toPx(lineX1)}
-          y1={toPy(lineY1)}
-          x2={toPx(lineX2)}
-          y2={toPy(lineY2)}
-          stroke="#3b82f6"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          filter="url(#softShadow)"
-          style={{ transition: 'all 0.1s linear' }}
-        />
-
-        {/* Function Line 2: y = a2*x + b2 */}
-        {showLine2 && (
-          <line
-            x1={toPx(line2X1)}
-            y1={toPy(line2Y1)}
-            x2={toPx(line2X2)}
-            y2={toPy(line2Y2)}
-            stroke="#ec4899"
-            strokeWidth="3.5"
-            strokeLinecap="round"
-            style={{ transition: 'all 0.1s linear' }}
-          />
-        )}
-
         {/* Intersection Point */}
-        {showLine2 && intersection && intersection.type === 'point' && (
+        {showLine1 && showLine2 && intersection && intersection.type === 'point' && (
           <g transform={`translate(${toPx(intersection.x)}, ${toPy(intersection.y)})`}>
             <circle r="7" fill="#10b981" stroke="#ffffff" strokeWidth="2.5" style={{ filter: 'drop-shadow(0 2px 5px rgba(16,185,129,0.4))' }} />
             {isNearHandle && (
@@ -508,53 +602,56 @@ export default function InteractiveGraph({
             <g transform={`translate(${ixBadgeX}, ${ixBadgeY})`}>
               <rect
                 x={ixBoxX}
-                y="-11"
-                width="95"
-                height="22"
-                rx="6"
+                y={-ixBoxHeight / 2}
+                width={ixBoxWidth}
+                height={ixBoxHeight}
+                rx="8"
                 fill="rgba(16, 185, 129, 0.95)"
-                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))' }}
+                style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.18))' }}
               />
               <text
-                x={ixTextAnchor === "start" ? 0 : 0}
-                y="4"
+                x={ixTextAnchor === "start" ? (ixBoxX + 12) : 0}
+                y="1"
                 fill="#ffffff"
-                fontSize="11"
+                fontSize="12"
                 fontWeight="600"
                 textAnchor={ixTextAnchor}
+                dominantBaseline="central"
               >
-                교점 ({formatCoordStr(intersection.rawX)}, {formatCoordStr(intersection.rawY)})
+                {ixTextStr}
               </text>
             </g>
           </g>
         )}
 
         {/* Y-Intercept Handle 1 (0, b) */}
-        <g
-          style={{ cursor: interactiveHandles ? 'ns-resize' : 'default' }}
-          onPointerDown={handlePointerDown('intercept')}
-        >
-          <circle
-            cx={toPx(0)}
-            cy={h1Py}
-            r="12"
-            fill="#ffffff"
-            stroke="#ef4444"
-            strokeWidth="2.5"
-            style={{ transition: 'stroke-width 0.2s ease', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.1))' }}
-          />
-          <text
-            x={toPx(0) - 16}
-            y={labelY1}
-            fill="#ef4444"
-            fontSize="12"
-            fontWeight="500"
-            textAnchor="end"
-            style={{ pointerEvents: 'none' }}
+        {showLine1 && (
+          <g
+            style={{ cursor: interactiveHandles ? 'ns-resize' : 'default' }}
+            onPointerDown={handlePointerDown('intercept')}
           >
-            y절편 ({formatCoordStr(b)})
-          </text>
-        </g>
+            <circle
+              cx={toPx(0)}
+              cy={h1Py}
+              r="12"
+              fill="#ffffff"
+              stroke="#3b82f6"
+              strokeWidth="2.5"
+              style={{ transition: 'stroke-width 0.2s ease', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.1))' }}
+            />
+            <text
+              x={toPx(0) - 16}
+              y={labelY1}
+              fill="#2563eb"
+              fontSize="12"
+              fontWeight="600"
+              textAnchor="end"
+              style={{ pointerEvents: 'none', paintOrder: 'stroke fill', stroke: '#ffffff', strokeWidth: '4px', strokeLinejoin: 'round' }}
+            >
+              y절편 ({formatFractionStr(b)})
+            </text>
+          </g>
+        )}
 
         {/* Y-Intercept Handle 2 (0, b2) */}
         {showLine2 && (
@@ -574,19 +671,19 @@ export default function InteractiveGraph({
             <text
               x={toPx(0) + 16}
               y={labelY2}
-              fill="#ec4899"
+              fill="#be185d"
               fontSize="12"
-              fontWeight="500"
+              fontWeight="600"
               textAnchor="start"
-              style={{ pointerEvents: 'none' }}
+              style={{ pointerEvents: 'none', paintOrder: 'stroke fill', stroke: '#ffffff', strokeWidth: '4px', strokeLinejoin: 'round' }}
             >
-              y절편2 ({formatCoordStr(b2)})
+              y절편2 ({formatFractionStr(b2)})
             </text>
           </g>
         )}
 
         {/* Interactive Slope Control Handle 1 */}
-        {interactiveHandles && (
+        {interactiveHandles && showLine1 && (
           <g
             style={{ cursor: 'grab' }}
             onPointerDown={handlePointerDown('slope')}
@@ -603,11 +700,11 @@ export default function InteractiveGraph({
             <text
               x={slopeLabelX1}
               y={slopeLabelY1}
-              fill="#3b82f6"
+              fill="#2563eb"
               fontSize="12"
-              fontWeight="500"
+              fontWeight="600"
               textAnchor={slopeAnchor1}
-              style={{ pointerEvents: 'none' }}
+              style={{ pointerEvents: 'none', paintOrder: 'stroke fill', stroke: '#ffffff', strokeWidth: '4px', strokeLinejoin: 'round' }}
             >
               기울기1 조절
             </text>
@@ -678,6 +775,7 @@ export default function InteractiveGraph({
           className="zoom-btn"
           onClick={() => {
             setZoom(1);
+            setPanOffset({ x: 0, y: 0 });
             if (onReset) onReset();
           }}
           title="기본 뷰 및 값 되돌리기 (초기화)"
