@@ -211,6 +211,31 @@ export default function App() {
           </button>
         </div>
       )}
+
+      {/* Signature Watermark */}
+      <div style={{
+        position: 'absolute',
+        bottom: '1.5rem',
+        right: isSidePanelOpen ? 'calc(390px + 1.5rem)' : '1.5rem',
+        transition: 'right 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+        zIndex: 10,
+        fontSize: '12px',
+        fontWeight: '600',
+        color: '#94a3b8',
+        background: 'rgba(255, 255, 255, 0.7)',
+        backdropFilter: 'blur(8px)',
+        padding: '0.4rem 0.8rem',
+        borderRadius: '999px',
+        border: '1px solid #e2e8f0',
+        pointerEvents: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.35rem',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+        letterSpacing: '0.02em'
+      }}>
+        <Sparkles size={14} color="#64748b" /> Designed by Woo Jiin © 2026
+      </div>
     </div>
   );
 }
